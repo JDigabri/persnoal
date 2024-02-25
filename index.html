@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Three.js Portal Cube</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <script src="https://threejs.org/build/three.js"></script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+
+
+    let camera, scene, renderer;
+    let portalCamera, portalScene, portalTexture;
+    let cube;
+
+    init();
+    animate();
+
+    function init() {
+      // Main Scene
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.z = 5;
+
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      scene.background = new THREE.Color(0xffffff);
+      const controls = new OrbitControls(camera, renderer.domElement);
+
+      // Cube with Portal
+      const geometry = new THREE.BoxGeometry();
+      const materials = [
+        new THREE.MeshBasicMaterial({ color: 0x00ff00 }),
+        new THREE.MeshBasicMaterial({ color: 0xff0000 }),
+        new THREE.MeshBasicMaterial({ color: 0x0000ff }),
+        new THREE.MeshBasicMaterial({ color: 0xffff00 }),
+        new THREE.MeshBasicMaterial({ color: 0xff00ff }),
+        new THREE.MeshBasicMaterial(), // Portal face, material will be set later
+      ];
+      cube = new THREE.Mesh(geometry, materials);
+      scene.add(cube);
+
+      // Portal Scene
+      portalScene = new THREE.Scene();
+      portalCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+      portalCamera.position.set(0, 0, 5); // Position the camera so it's looking at the sphere
+
+      portalTexture = new THREE.WebGLRenderTarget(512, 512);
+      const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+      const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x7777ff });
+      const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      sphere.position.set(0, 0, 5); // Ensure the sphere is centered in the portal scene
+      portalScene.add(sphere);
+      // Add walls
+      const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x288878 });
+      const backWallMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff }); // Teal
+      const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xaec6cf }); // Light blue
+      const leftWallMaterial = new THREE.MeshStandardMaterial({ color: 0xffb347 }); // Orange
+      const rightWallMaterial = new THREE.MeshStandardMaterial({ color: 0xff6961 }); // Pink
+
+      const wallGeometry = new THREE.PlaneGeometry(10, 10);
+
+      const backWall = new THREE.Mesh(wallGeometry, backWallMaterial);
+      backWall.position.z = -5;
+      portalScene.add(backWall);
+
+      const floor = new THREE.Mesh(wallGeometry, floorMaterial);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -3.5;
+      portalScene.add(floor);
+
+      const leftWall = new THREE.Mesh(wallGeometry, leftWallMaterial);
+      leftWall.rotation.y = Math.PI / 2;
+      leftWall.position.x = -5;
+      portalScene.add(leftWall);
+
+      const rightWall = new THREE.Mesh(wallGeometry, rightWallMaterial);
+      rightWall.rotation.y = -Math.PI / 2;
+      rightWall.position.x = 5;
+      portalScene.add(rightWall);
+      // Lighting for the Portal Scene
+      const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
+      portalScene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      directionalLight.position.set(1, 1, 1);
+      portalScene.add(directionalLight);
+
+      // Set portal texture to cube face
+      materials[5].map = portalTexture.texture;
+
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    function updatePortalCamera() {
+      const portalPosition = new THREE.Vector3(0, 0, 0);
+      const portalNormal = new THREE.Vector3(0, 0, 1); 
+      // Calculate the view direction from the camera to the portal
+      const viewDirection = portalPosition.clone().sub(camera.position).normalize();
+
+      // Set the portal camera to look in the direction of the portal from the main camera's current position
+      portalCamera.position.copy(camera.position); // Start with the main camera's position
+      portalCamera.lookAt(portalPosition); // Look at the portal
+      portalCamera.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), viewDirection); // Rotate the camera to face the portal
+
+      // Move the portal camera to the portal's position
+      portalCamera.position.add(portalPosition);
+
+      // Move the portal camera to the portal's position
+      portalCamera.position.add(portalNormal.multiplyScalar(0.1)); // Move the camera slightly in front of the portal
+
+      // Rotate the camera to match the portal's orientation
+      portalCamera.rotateY(Math.PI); // Rotate the camera 180 degrees around the Y-axis to match the portal's orientation
+
+      // Update the portal camera's projection matrix
+      portalCamera.updateProjectionMatrix();
+
+      // Update the portal camera's view matrix
+      portalCamera.updateMatrixWorld();
+
+
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      updatePortalCamera(); // Update portal camera based on the main camera's view
+
+      // Render the portal scene to the texture
+      renderer.setRenderTarget(portalTexture);
+      renderer.clear();
+      renderer.render(portalScene, portalCamera);
+      renderer.setRenderTarget(null);
+
+      // Render the main scene
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+
+</html>
